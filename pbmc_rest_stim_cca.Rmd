@@ -1,0 +1,62 @@
+---
+title: rest / stim integration 
+output: "html_document"
+---
+
+
+```{r include=FALSE}
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+```
+
+
+```{r}
+
+#### This scripts performs CCA integration on the resting and stimulated PBMC dataset
+
+#load filtered and merged data
+pbmc <- readRDS("pbmc_filtered_D1_G1.rds")
+
+```
+
+```{r}
+# split the dataset into a list of two seurat objects (stim and rest)
+pbmc.list <- SplitObject(pbmc, split.by = "orig.ident")
+
+# normalize and identify variable features for each dataset independently
+pbmc.list <- lapply(X = pbmc.list, FUN = function(x) {
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+# select features that are repeatedly variable across datasets for integration
+features <- SelectIntegrationFeatures(object.list = pbmc.list)
+
+```
+
+
+```{r}
+# data integration with CCA
+pbmc.anchors <- FindIntegrationAnchors(object.list = pbmc.list, anchor.features = features, reduction = "cca")
+pbmc.combined <- IntegrateData(anchorset = pbmc.anchors)
+
+```
+
+```{r}
+DefaultAssay(pbmc.combined) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+pbmc.combined <- ScaleData(pbmc.combined, verbose = FALSE)
+pbmc.combined <- RunPCA(pbmc.combined, npcs = 30, verbose = FALSE)
+pbmc.combined <- RunUMAP(pbmc.combined, reduction = "pca", dims = 1:30)
+```
+
+```{r}
+# Visualization
+DimPlot(pbmc.combined, reduction = "umap") 
+
+```
+
+
+

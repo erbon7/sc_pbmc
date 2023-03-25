@@ -1,0 +1,65 @@
+---
+title: QC Samples rest / stimulated 
+output: "html_document"
+---
+
+
+```{r include=FALSE}
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+```
+
+
+```{r echo=T}
+
+#### this script is loading the data for the resting and stimulated PBMC cells, filters out 
+#### low-quality cells and save the data in a 'rds' file
+
+# data directories containing the matrix.mtx.gz, features.tsv.gz and barcodes.tsv.gz files
+D1.dir = "/env/data/D1/" # resting dataset
+G1.dir = "/env/data/G1/" # stimulated dataset
+
+D1.data <- Read10X(data.dir = D1.dir)
+G1.data <- Read10X(data.dir = G1.dir)
+
+min_ft <- 200
+
+D1 <- CreateSeuratObject(counts = D1.data, project = "rest", min.cells = 3, min.features = min_ft)
+# load list of non-doublets from scrublet
+D1_scrublet_list <-  read.table(paste(D1.dir,"D1_barcode_doublets_false.txt", sep=""))
+# remove doublets
+D1 <- subset(D1, cells = D1_scrublet_list$V1)
+
+# same process for G1 'stimulated' data
+G1 <- CreateSeuratObject(counts = G1.data, project = "stim", min.cells = 3, min.features = min_ft)
+G1_scrublet_list <-  read.table(paste(G1.dir,"G1_barcode_doublets_false.txt", sep=""))
+G1 <- subset(G1, cells = G1_scrublet_list$V1)
+
+rm(D1.data)
+rm(G1.data)
+
+
+```
+
+```{r}
+# annotate mitochondrial genes and filter out low-quality cells
+D1[["percent.mt"]] <- PercentageFeatureSet(D1, pattern = "^MT-")
+D1 <- subset(D1, subset = nFeature_RNA > 200 & nFeature_RNA < 7000 & percent.mt < 14)
+
+G1[["percent.mt"]] <- PercentageFeatureSet(G1, pattern = "^MT-")
+G1 <- subset(G1, subset = nFeature_RNA > 200 & nFeature_RNA < 6200 & percent.mt < 14)
+
+# create global seurat object
+pbmc <- merge(D1, G1, add.cell.ids=c("rest","stim"))
+
+saveRDS(pbmc,file="pbmc_filtered_D1_G1.rds")
+
+```
+
+
+
+
+
+
+

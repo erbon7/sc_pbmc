@@ -1,0 +1,74 @@
+---
+title: QC samples Fresh/Frozen 
+output: "html_document"
+---
+
+
+```{r include=FALSE}
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+```
+
+
+```{r}
+# load data
+A2.dir = "/data/A2/" # fresh 1
+B2.dir = "/data/B2/" # fresh 2
+A3.dir = "/data/A3/" # frozen 1
+B3.dir = "/data/B3/" # frozen 2
+
+A2.data <- Read10X(data.dir = A2.dir)
+A3.data <- Read10X(data.dir = A3.dir)
+B2.data <- Read10X(data.dir = B2.dir)
+B3.data <- Read10X(data.dir = B3.dir)
+
+min_ft <- 200
+
+A2 <- CreateSeuratObject(counts = A2.data, project = "fresh1", min.cells = 3, min.features = min_ft)
+B2 <- CreateSeuratObject(counts = B2.data, project = "fresh2", min.cells = 3, min.features = min_ft)
+A3 <- CreateSeuratObject(counts = A3.data, project = "frozen1", min.cells = 3, min.features = min_ft)
+B3 <- CreateSeuratObject(counts = B3.data, project = "frozen2", min.cells = 3, min.features = min_ft)
+
+rm(A2.data)
+rm(B2.data)
+rm(A3.data)
+rm(B3.data)
+
+```
+
+
+```{r}
+# create global seurat object
+all <- merge(A2, c(B2,A3,B3), add.cell.ids=c("fresh1","fresh2","frozen1","frozen2"))
+
+# count cells
+table(Idents(all))
+
+#reorder data for plots
+my_levels <- c("fresh1","fresh2","frozen1","frozen2")
+all@meta.data$orig.ident <- factor(x = all@meta.data$orig.ident, levels = my_levels)
+
+```
+
+```{r}
+# plot median number of genes per cell
+VlnPlot(all, features = "nFeature_RNA", group.by = "orig.ident", pt.size = 0.0)
+```
+
+```{r}
+# calculate percentage of mitochondrial genes per cell 
+all[["percent.mt"]] <- PercentageFeatureSet(all, pattern = "^MT-")
+
+```
+
+```{r}
+# violin plot for number of molecules per cell
+VlnPlot(all, features = "nCount_RNA", group.by = "orig.ident", pt.size = 0.0)
+```
+
+```{r}
+# violin plot for the percentage of mitochondrial genes per cell
+VlnPlot(all, features = "percent.mt", group.by = "orig.ident", pt.size = 0.0) 
+```
+

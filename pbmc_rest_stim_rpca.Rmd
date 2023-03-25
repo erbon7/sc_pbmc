@@ -1,0 +1,68 @@
+---
+title: rest / stim integration 
+output: "html_document"
+---
+
+
+```{r include=FALSE}
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+```
+
+
+```{r}
+#### This scripts performs reciprocal PCA on the resting and stimulated datasets
+
+#load filtered and merged data
+pbmc <- readRDS("pbmc_filtered_D1_G1.rds")
+
+```
+
+```{r}
+# find variable features
+# split the dataset into a list of two seurat objects (stim and rest)
+pbmc.list <- SplitObject(pbmc, split.by = "orig.ident")
+
+pbmc.list <- lapply(X = pbmc.list, FUN = function(x) {
+    x <- NormalizeData(x, verbose = FALSE)
+    x <- FindVariableFeatures(x, verbose = FALSE)
+})
+
+```
+
+
+```{r}
+# performs PCA on each dataset
+features <- SelectIntegrationFeatures(object.list = pbmc.list)
+pbmc.list <- lapply(X = pbmc.list, FUN = function(x) {
+    x <- ScaleData(x, features = features, verbose = FALSE)
+    x <- RunPCA(x, features = features, verbose = FALSE)
+})
+
+```
+
+
+```{r}
+# data integration
+anchors <- FindIntegrationAnchors(object.list = pbmc.list, reduction = "rpca", dims = 1:30)
+pbmc.combined <- IntegrateData(anchorset = anchors, dims = 1:30)
+```
+
+```{r}
+DefaultAssay(pbmc.combined) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+pbmc.combined <- ScaleData(pbmc.combined, verbose = FALSE)
+pbmc.combined <- RunPCA(pbmc.combined, npcs = 30, verbose = FALSE)
+pbmc.combined <- RunUMAP(pbmc.combined, reduction = "pca", dims = 1:30)
+```
+
+```{r}
+# Visualization
+DimPlot(pbmc.combined, reduction = "umap")
+
+```
+
+
+
