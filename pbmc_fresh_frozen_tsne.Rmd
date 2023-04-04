@@ -1,0 +1,97 @@
+---
+title: Analysis samples Fresh/Frozen 
+output: "html_document"
+---
+
+
+```{r include=FALSE}
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+```
+
+
+```{r echo=T}
+# load data
+
+A2.dir = "/data/A2/" # fresh sample 1
+B2.dir = "/data/B2/" # fresh sample 2
+A3.dir = "/data/A3/" # frozen sample 1
+B3.dir = "/data/B3/" # frozen sample 2
+
+A2.data <- Read10X(data.dir = A2.dir)
+A3.data <- Read10X(data.dir = A3.dir)
+B2.data <- Read10X(data.dir = B2.dir)
+B3.data <- Read10X(data.dir = B3.dir)
+
+min_ft <- 200
+
+A2 <- CreateSeuratObject(counts = A2.data, project = "fresh1", min.cells = 3, min.features = min_ft)
+B2 <- CreateSeuratObject(counts = B2.data, project = "fresh2", min.cells = 3, min.features = min_ft)
+A3 <- CreateSeuratObject(counts = A3.data, project = "frozen1", min.cells = 3, min.features = min_ft)
+B3 <- CreateSeuratObject(counts = B3.data, project = "frozen2", min.cells = 3, min.features = min_ft)
+
+```
+
+
+
+```{r echo=T}
+# calculate percentage of mitochondrial genes
+
+A2[["percent.mt"]] <- PercentageFeatureSet(A2, pattern = "^MT-")
+A3[["percent.mt"]] <- PercentageFeatureSet(A3, pattern = "^MT-")
+B2[["percent.mt"]] <- PercentageFeatureSet(B2, pattern = "^MT-")
+B3[["percent.mt"]] <- PercentageFeatureSet(B3, pattern = "^MT-")
+
+# filter out low quality cells
+A2 <- subset(A2, subset = nFeature_RNA > 350 & nFeature_RNA < 6000 & percent.mt < 14)
+B2 <- subset(B2, subset = nFeature_RNA > 350 & nFeature_RNA < 6000 & percent.mt < 14)
+
+A3 <- subset(A3, subset = nFeature_RNA > 350 & nFeature_RNA < 4000 & percent.mt < 10)
+B3 <- subset(B3, subset = nFeature_RNA > 350 & nFeature_RNA < 4000 & percent.mt < 10)
+
+```
+
+
+```{r}
+# create global seurat object
+all <- merge(A2, c(B2,A3,B3), add.cell.ids=c("A2","B2","A3","B3"))
+all
+
+```
+
+```{r}
+
+all <- NormalizeData(all)
+
+# find the 2000 most variable genes
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+
+# center and scale data
+all <- ScaleData(all)
+
+# perform PCA
+all <- RunPCA(all)
+
+```
+
+
+```{r}
+# visualize all PCA components
+ElbowPlot(all)
+
+```
+
+
+```{r}
+# dimensionality reduction 
+all <- RunTSNE(all, dims = 1:20)
+```
+
+
+```{r}
+# visualization 
+DimPlot(all, reduction = "tsne")
+```
+
+
