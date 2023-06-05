@@ -1,0 +1,88 @@
+---
+title: rest / stim integration with CCA and annotation 
+output: "html_document"
+---
+
+
+```{r include=FALSE}
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+```
+
+
+```{r, load data}
+
+#load filtered and merged data
+pbmc <- readRDS("pbmc_filtered_D1_G1.rds")
+
+```
+
+```{r, find variable features}
+# split the dataset into a list of two seurat objects (stim and rest)
+pbmc.list <- SplitObject(pbmc, split.by = "orig.ident")
+
+# normalize and identify variable features for each dataset independently
+pbmc.list <- lapply(X = pbmc.list, FUN = function(x) {
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+# select features that are repeatedly variable across datasets for integration
+features <- SelectIntegrationFeatures(object.list = pbmc.list)
+
+```
+
+
+```{r, data integration}
+pbmc.anchors <- FindIntegrationAnchors(object.list = pbmc.list, anchor.features = features, reduction = "cca")
+# this command creates an 'integrated' data assay
+pbmc.combined <- IntegrateData(anchorset = pbmc.anchors)
+
+```
+
+```{r}
+# specify that we will perform downstream analysis on the corrected data note that the original
+# unmodified data still resides in the 'RNA' assay
+DefaultAssay(pbmc.combined) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+pbmc.combined <- ScaleData(pbmc.combined, verbose = FALSE)
+pbmc.combined <- RunPCA(pbmc.combined, npcs = 30, verbose = FALSE)
+pbmc.combined <- RunUMAP(pbmc.combined, reduction = "pca", dims = 1:30)
+```
+
+```{r}
+
+DimPlot(pbmc.combined, reduction = "umap") 
+
+```
+
+```{r}
+# cluster data
+pbmc.combined <- FindNeighbors(pbmc.combined, reduction = "pca", dims = 1:20)
+pbmc.combined <- FindClusters(pbmc.combined, resolution = 0.5)
+
+```
+
+```{r}
+DimPlot(pbmc.combined, reduction = "umap")
+```
+
+
+```{r}
+
+### annotate with seurat pbmc ifnb dataset integrated
+
+immune.combined <- readRDS("seurat_immune_combined.rds")
+DefaultAssay(immune.combined) <- "integrated"
+anchors <- FindTransferAnchors(reference = immune.combined, query = pbmc.combined)
+predictions <- TransferData(anchorset = anchors, refdata = immune.combined$seurat_annotations)
+pbmc.combined <- AddMetaData(object = pbmc.combined, metadata = predictions)
+
+```
+
+```{r}
+# visualize clusters with annotations
+DimPlot(pbmc.combined, group.by = "predicted.id", label=T, cols=c("#089392", "#13A491", "#40B48B", "#6CC382", "#9DCD84", "#C5D88C", "#EAE29C", "#EACC84", "#EAB672", "#E99F69", "#E6866A", "#E16C72", "#CF597E"))
+```

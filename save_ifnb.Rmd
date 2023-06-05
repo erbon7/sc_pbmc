@@ -1,0 +1,53 @@
+---
+title: "seurat_stimulated_vs_control_pbmc"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(Seurat)
+library(SeuratData)
+library(cowplot)
+library(patchwork)
+
+data("ifnb")
+ifnb.list <- SplitObject(ifnb, split.by = "stim")
+
+ifnb.list <- lapply(X = ifnb.list, FUN = function(x) {
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+```
+
+
+```{r}
+# data integration
+immune.anchors <- FindIntegrationAnchors(object.list = ifnb.list, dims = 1:20)
+```
+
+```{r}
+immune.combined <- IntegrateData(anchorset = immune.anchors, dims = 1:20)
+```
+
+
+```{r}
+DefaultAssay(immune.combined) <- "integrated"
+
+immune.combined <- ScaleData(immune.combined, verbose = FALSE)
+immune.combined <- RunPCA(immune.combined, npcs = 30, verbose = FALSE)
+immune.combined <- RunUMAP(immune.combined, reduction = "pca", dims = 1:20)
+immune.combined <- FindNeighbors(immune.combined, reduction = "pca", dims = 1:20)
+immune.combined <- FindClusters(immune.combined, resolution = 0.5)
+```
+
+```{r}
+#### save the object to rds file
+saveRDS(immune.combined, file = "c:\\Users\\bonnet\\Documents\\sc\\seurat_immune_combined.rds")
+
+```
+
+
