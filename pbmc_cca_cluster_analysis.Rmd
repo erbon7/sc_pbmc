@@ -1,0 +1,99 @@
+---
+title: rest / stim analysis 
+output: "html_document"
+---
+
+
+```{r include=FALSE}
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+library(cowplot)
+library(patchwork)
+```
+
+Find conserved markers irrespective of the resting versus stimulated condition 
+
+```{r}
+
+#load annotated data
+pbmc.combined <- readRDS("pbmc_combined_annotated.rds")
+
+pbmc.combined
+
+table(Idents(pbmc.combined))
+
+
+# set the default assay to the original "RNA" data, before integration
+DefaultAssay(pbmc.combined) <- "RNA"
+
+# find conserved markers
+nk.markers <- FindConservedMarkers(pbmc.combined, ident.1 = 1, grouping.var="orig.ident")
+
+head(nk.markers)
+
+```
+
+Count conserved markers with adjusted p-values < 0.05 
+
+```{r}
+sel <- nk.markers$rest_p_val_adj < 0.05 & nk.markers$stim_p_val_adj < 0.05
+sum(sel)
+sum(nk.markers[sel,]$rest_avg_log2FC > 1)
+sum(nk.markers[sel,]$rest_avg_log2FC > 2)
+
+```
+
+Plot umap with predicted labels, split rest vs stim
+
+```{r}
+DimPlot(pbmc.combined, split.by="orig.ident", group.by="predicted.id", label=T)
+```
+
+Feature plot for conserved marker for NK cells SH2D1B versus non specific IFI6  
+
+```{r}
+DimPlot(pbmc.combined, group.by="predicted.id",label=T, split.by = "orig.ident", cols=c("#089392", "#13A491", "#40B48B", "#6CC382", "#9DCD84", "#C5D88C", "#EAE29C", "#EACC84", "#EAB672", "#E99F69", "#E6866A", "#E16C72", "#CF597E")) -> p0
+FeaturePlot(pbmc.combined, features="SH2D1B", split.by="orig.ident") -> p1
+FeaturePlot(pbmc.combined, features="IFI6", split.by="orig.ident") -> p2
+FeaturePlot(pbmc.combined, features="CXCL10", split.by="orig.ident") -> p3
+
+p0
+p1
+p2
+p3
+
+
+#pdf("diff.pdf", width=10,height=21)
+#p0/p1/p2/p3
+#dev.off()
+```
+
+
+Analyse differentially expressed genes rest vs stim for B cells
+
+```{r}
+
+# set cell identities to predicted classes
+Idents(pbmc.combined) <- "predicted.id"
+# create new categories combining predicted classes 
+pbmc.combined$celltype.stim <- paste(Idents(pbmc.combined), pbmc.combined$orig.ident, sep="_")
+# check number of cells per type
+table(pbmc.combined$celltype.stim)
+
+# switch cell identities to new category
+Idents(pbmc.combined) <- "celltype.stim"
+
+# compare b rest vs b stim
+b.ifn.response <- FindMarkers(pbmc.combined, ident.1="B_stim", ident.2 = "B_rest")
+
+# top results
+head(b.ifn.response)
+# results table size
+dim(b.ifn.response)
+# results for gene CXCL10
+b.ifn.response["CXCL10",]
+# count nb of genes with p-value < 0.05
+sum(b.ifn.response$p_val_adj < 0.05)
+                   
+```
